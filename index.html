@@ -4,19 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <style>
-  html, body { margin: 0; height: 100%; background: #0D1F4E; font-family: -apple-system, Arial, sans-serif; color: #fff; }
+  html, body { margin: 0; height: 100%; background: #0D1F4E; font-family: -apple-system, Arial, sans-serif; color: #fff; -webkit-user-select: none; user-select: none; }
   #wrap { display: flex; flex-direction: column; align-items: center; min-height: 100%; padding: 16px; box-sizing: border-box; }
-  h1 { font-size: 20px; font-weight: 500; margin: 8px 0 12px; }
-  #reader { width: 100%; max-width: 360px; border-radius: 14px; overflow: hidden; background: #000; }
-  #status { margin-top: 16px; font-size: 22px; min-height: 30px; text-align: center; }
-  #detail { margin-top: 6px; font-size: 14px; color: #9fb4e6; word-break: break-all; text-align: center; }
-  .ok { color: #7AC143; }
-  .err { color: #ff9a9a; }
+  h1 { font-size: 22px; font-weight: 500; margin: 6px 0 10px; }
+  #reader { width: 92vw; max-width: 640px; border-radius: 16px; overflow: hidden; background: #000; }
+  #status { margin-top: 20px; font-size: 30px; min-height: 38px; text-align: center; font-weight: 500; }
+  #detail { margin-top: 8px; font-size: 18px; color: #9fb4e6; text-align: center; }
+  .ok  { color: #7AC143; }
+  .err { color: #ff8a8a; }
 </style>
 </head>
 <body>
 <div id="wrap">
-  <h1>SAIL Check-In — Camera Test</h1>
+  <h1>SAIL Check-In</h1>
   <div id="reader"></div>
   <div id="status">Starting camera…</div>
   <div id="detail"></div>
@@ -24,22 +24,88 @@
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
+  // ===== CONFIG =====
+  var RECEIVER_URL = 'https://script.google.com/macros/s/AKfycbxVoA0SrYCSI4Fb5f8tq4qpRqxDJOAQge0Tp-RcgaOa-hDejhhc5nLhr3e5GHuQ5t7qcA/exec';   // the Apps Script /exec web app URL
+  var params = new URLSearchParams(location.search);
+  var KEY    = params.get('key')   || '';
+  var KIOSK  = params.get('kiosk') || 'Unknown';
+  // ==================
+
   var statusEl = document.getElementById('status');
   var detailEl = document.getElementById('detail');
   var lastCode = '', lastTime = 0, busy = false;
   var scanner = new Html5Qrcode("reader");
 
-  function beep() {
+  function beep(good) {
     try {
       var ac = new (window.AudioContext || window.webkitAudioContext)();
       var o = ac.createOscillator(), g = ac.createGain();
       o.connect(g); g.connect(ac.destination);
-      o.type = 'sine'; o.frequency.value = 880;
+      o.type = 'sine'; o.frequency.value = good ? 880 : 300;
       g.gain.setValueAtTime(0.001, ac.currentTime);
       g.gain.exponentialRampToValueAtTime(0.4, ac.currentTime + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.25);
-      o.start(); o.stop(ac.currentTime + 0.26);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.28);
+      o.start(); o.stop(ac.currentTime + 0.3);
     } catch (e) {}
+  }
+
+  function reset(delay) {
+    setTimeout(function() {
+      busy = false;
+      statusEl.textContent = 'Point your card at the camera';
+      statusEl.className = '';
+      detailEl.textContent = '';
+    }, delay || 2200);
+  }
+
+  function show(res) {
+    if (res.ok) {
+      beep(true);
+      statusEl.textContent = '\u2713 ' + res.name;
+      statusEl.className = 'ok';
+      detailEl.textContent = res.status;
+      reset(2200);
+    } else if (res.reason === 'noschool') {
+      statusEl.textContent = 'No school today';
+      statusEl.className = '';
+      detailEl.textContent = '';
+      reset(2200);
+    } else if (res.reason === 'rejected') {
+      beep(false);
+      statusEl.textContent = 'Not allowed';
+      statusEl.className = 'err';
+      detailEl.textContent = 'Please check in at the front desk';
+      reset(2600);
+    } else if (res.reason === 'unknown') {
+      beep(false);
+      statusEl.textContent = 'Card not recognized';
+      statusEl.className = 'err';
+      detailEl.textContent = '';
+      reset(2600);
+    } else {
+      beep(false);
+      statusEl.textContent = 'Try again';
+      statusEl.className = 'err';
+      detailEl.textContent = res.message || '';
+      reset(2600);
+    }
+  }
+
+  function sendScan(code) {
+    var cbName = 'k_' + Date.now();
+    var s = document.createElement('script');
+    window[cbName] = function(res) { show(res); cleanup(s, cbName); };
+    s.onerror = function() { show({ ok:false, reason:'neterr', message:'Network error' }); cleanup(s, cbName); };
+    s.src = RECEIVER_URL + '?callback=' + cbName +
+            '&key='   + encodeURIComponent(KEY) +
+            '&kiosk=' + encodeURIComponent(KIOSK) +
+            '&code='  + encodeURIComponent(code);
+    document.body.appendChild(s);
+  }
+
+  function cleanup(s, cbName) {
+    try { document.body.removeChild(s); } catch (e) {}
+    try { delete window[cbName]; } catch (e) {}
   }
 
   function onScan(text) {
@@ -47,30 +113,39 @@
     if (busy) return;
     if (text === lastCode && now - lastTime < 4000) return;
     lastCode = text; lastTime = now; busy = true;
-    beep();
-    statusEl.textContent = '\u2713 Captured';
-    statusEl.className = 'ok';
-    detailEl.textContent = text;
-    setTimeout(function() {
-      busy = false;
-      statusEl.textContent = 'Point a QR code at the camera';
-      statusEl.className = '';
-      detailEl.textContent = '';
-    }, 2000);
+    statusEl.textContent = 'Checking…';
+    statusEl.className = '';
+    detailEl.textContent = '';
+    sendScan(text);
   }
 
-  var config = { fps: 10, qrbox: 240, experimentalFeatures: { useBarCodeDetectorIfSupported: true } };
+  var qrboxFn = function(vw, vh) {
+    var m = Math.floor(Math.min(vw, vh) * 0.75);
+    return { width: m, height: m };
+  };
+  var config = { fps: 10, qrbox: qrboxFn, experimentalFeatures: { useBarCodeDetectorIfSupported: true } };
 
   scanner.start({ facingMode: "user" }, config, onScan)
     .then(function() {
-      statusEl.textContent = 'Point a QR code at the camera';
-      statusEl.className = '';
+      statusEl.textContent = (RECEIVER_URL.indexOf('PASTE') === 0)
+        ? 'Set RECEIVER_URL first' : 'Point your card at the camera';
+      statusEl.className = (RECEIVER_URL.indexOf('PASTE') === 0) ? 'err' : '';
     })
     .catch(function(err) {
       statusEl.textContent = 'Camera blocked';
       statusEl.className = 'err';
       detailEl.textContent = String(err);
     });
+
+  // Keep the iPad screen awake
+  var wl = null;
+  async function keepAwake() { try { wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
+  if ('wakeLock' in navigator) {
+    keepAwake();
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') keepAwake();
+    });
+  }
 </script>
 </body>
 </html>
