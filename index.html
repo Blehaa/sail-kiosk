@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; background: #0D1F4E; font-family: -apple-system, Arial, sans-serif; color: #fff; }
+  #wrap { display: flex; flex-direction: column; align-items: center; min-height: 100%; padding: 16px; box-sizing: border-box; }
+  h1 { font-size: 20px; font-weight: 500; margin: 8px 0 12px; }
+  #video { width: 100%; max-width: 520px; border-radius: 14px; background: #000; transform: scaleX(-1); }
+  #status { margin-top: 16px; font-size: 22px; min-height: 30px; text-align: center; }
+  #detail { margin-top: 6px; font-size: 14px; color: #9fb4e6; word-break: break-all; text-align: center; }
+  .ok { color: #7AC143; }
+  .err { color: #ff9a9a; }
+  button { margin-top: 16px; padding: 12px 20px; font-size: 16px; border: 0; border-radius: 10px; background: #7AC143; color: #0D1F4E; font-weight: 600; }
+  canvas { display: none; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>SAIL Check-In — Camera Test</h1>
+  <video id="video" playsinline muted></video>
+  <canvas id="canvas"></canvas>
+  <div id="status">Starting camera…</div>
+  <div id="detail"></div>
+  <button id="flip">Switch camera (front / rear)</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
+<script>
+  var video = document.getElementById('video');
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d', { willReadFrequently: true });
+  var statusEl = document.getElementById('status');
+  var detailEl = document.getElementById('detail');
+  var facing = 'user';          // start on FRONT camera
+  var stream = null;
+  var paused = false;
+  var lastCode = '';
+  var lastTime = 0;
+
+  function beep() {
+    try {
+      var ac = new (window.AudioContext || window.webkitAudioContext)();
+      var o = ac.createOscillator(), g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.type = 'sine'; o.frequency.value = 880;
+      g.gain.setValueAtTime(0.001, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.4, ac.currentTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.25);
+      o.start(); o.stop(ac.currentTime + 0.26);
+    } catch (e) {}
+  }
+
+  function startCamera() {
+    if (stream) { stream.getTracks().forEach(function(t){ t.stop(); }); }
+    video.style.transform = (facing === 'user') ? 'scaleX(-1)' : 'none';
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facing }, audio: false
+    }).then(function(s) {
+      stream = s;
+      video.srcObject = s;
+      video.play();
+      statusEl.textContent = 'Point a QR code at the camera';
+      statusEl.className = '';
+      detailEl.textContent = '';
+      requestAnimationFrame(tick);
+    }).catch(function(err) {
+      statusEl.textContent = 'Camera blocked';
+      statusEl.className = 'err';
+      detailEl.textContent = err.name + ': ' + err.message;
+    });
+  }
+
+  function tick() {
+    if (video.readyState === video.HAVE_ENOUGH_DATA && !paused) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      var img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      var code = jsQR(img.data, img.width, img.height);
+      if (code && code.data) {
+        var now = Date.now();
+        if (code.data !== lastCode || now - lastTime > 4000) {
+          lastCode = code.data; lastTime = now;
+          captured(code.data);
+        }
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function captured(text) {
+    paused = true;
+    beep();
+    statusEl.textContent = '✓ Captured';
+    statusEl.className = 'ok';
+    detailEl.textContent = text;
+    setTimeout(function() {
+      paused = false;
+      statusEl.textContent = 'Point a QR code at the camera';
+      statusEl.className = '';
+      detailEl.textContent = '';
+    }, 2000);
+  }
+
+  document.getElementById('flip').addEventListener('click', function() {
+    facing = (facing === 'user') ? 'environment' : 'user';
+    startCamera();
+  });
+
+  startCamera();
+</script>
+</body>
+</html>
