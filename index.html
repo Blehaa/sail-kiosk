@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <style>
   html, body { margin: 0; height: 100%; background: #0D1F4E; font-family: -apple-system, Arial, sans-serif; color: #fff; -webkit-user-select: none; user-select: none; }
-  #wrap { display: flex; flex-direction: column; align-items: center; min-height: 100%; padding: 16px; box-sizing: border-box; }
-  h1 { font-size: 22px; font-weight: 500; margin: 6px 0 10px; }
+  #wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; padding: 10px; box-sizing: border-box; }
+  h1 { font-size: 18px; font-weight: 500; margin: 0 0 8px; }
   #reader { width: 92vw; max-width: 640px; border-radius: 16px; overflow: hidden; background: #000; }
-  #status { margin-top: 20px; font-size: 30px; min-height: 38px; text-align: center; font-weight: 500; }
-  #detail { margin-top: 8px; font-size: 18px; color: #9fb4e6; text-align: center; }
+  #status { margin-top: 12px; font-size: 30px; min-height: 36px; text-align: center; font-weight: 500; line-height: 1.1; }
+  #detail { margin-top: 2px; font-size: 22px; color: #9fb4e6; text-align: center; min-height: 26px; }
   .ok  { color: #7AC143; }
   .err { color: #ff8a8a; }
 </style>
@@ -24,12 +24,10 @@
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
-  // ===== CONFIG =====
-  var RECEIVER_URL = 'https://script.google.com/macros/s/AKfycbxVoA0SrYCSI4Fb5f8tq4qpRqxDJOAQge0Tp-RcgaOa-hDejhhc5nLhr3e5GHuQ5t7qcA/exec';   // the Apps Script /exec web app URL
+  var RECEIVER_URL = 'https://script.google.com/macros/s/AKfycbxVoA0SrYCSI4Fb5f8tq4qpRqxDJOAQge0Tp-RcgaOa-hDejhhc5nLhr3e5GHuQ5t7qcA/exec';
   var params = new URLSearchParams(location.search);
   var KEY    = params.get('key')   || '';
   var KIOSK  = params.get('kiosk') || 'Unknown';
-  // ==================
 
   var statusEl = document.getElementById('status');
   var detailEl = document.getElementById('detail');
@@ -74,7 +72,7 @@
       beep(false);
       statusEl.textContent = 'Not allowed';
       statusEl.className = 'err';
-      detailEl.textContent = 'Please check in at the front desk';
+      detailEl.textContent = 'See the front desk';
       reset(2600);
     } else if (res.reason === 'unknown') {
       beep(false);
@@ -127,9 +125,8 @@
 
   scanner.start({ facingMode: "user" }, config, onScan)
     .then(function() {
-      statusEl.textContent = (RECEIVER_URL.indexOf('PASTE') === 0)
-        ? 'Set RECEIVER_URL first' : 'Point your card at the camera';
-      statusEl.className = (RECEIVER_URL.indexOf('PASTE') === 0) ? 'err' : '';
+      statusEl.textContent = 'Point your card at the camera';
+      statusEl.className = '';
     })
     .catch(function(err) {
       statusEl.textContent = 'Camera blocked';
@@ -137,7 +134,6 @@
       detailEl.textContent = String(err);
     });
 
-  // Keep the iPad screen awake
   var wl = null;
   async function keepAwake() { try { wl = await navigator.wakeLock.request('screen'); } catch (e) {} }
   if ('wakeLock' in navigator) {
