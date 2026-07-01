@@ -13,15 +13,30 @@
   .err { color: #ff8a8a; }
   #banner {
     position: fixed; left: 0; right: 0; bottom: 0;
+    height: 45vh;                 /* larger colored area */
     display: none; align-items: center; justify-content: center;
-    padding: 14px 0;
     font-size: 84px; font-weight: 700; line-height: 1;
     text-transform: uppercase; letter-spacing: 2px;
+    text-align: center;           /* word centered in the block */
     color: #0D1F4E;
   }
   .b-present { background: #7AC143; }
   .b-late    { background: #f0a500; }
   .b-error   { background: #ff8a8a; }
+
+  /* ---- Pre-K / Kinder celebration overlay ---- */
+  #party { position: fixed; inset: 0; display: none; pointer-events: none; overflow: hidden; z-index: 50; }
+  #party .pc { position: absolute; will-change: transform, opacity; line-height: 1; }
+  @keyframes pFall     { from { transform: translateY(-15vh) rotate(0deg); }   to { transform: translateY(115vh) rotate(720deg); } }
+  @keyframes pFloatUp  { from { transform: translateY(115vh) scale(1); }        to { transform: translateY(-25vh) scale(1); } }
+  @keyframes pBurst    { from { transform: translate(0,0) scale(.4); opacity: 1; } to { transform: translate(var(--tx), var(--ty)) scale(1.2); opacity: 0; } }
+  @keyframes pPop      { 0% { transform: scale(0) rotate(-20deg); opacity: 0; } 60% { transform: scale(1.3) rotate(10deg); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+  @keyframes pWiggle   { 0%,100% { transform: rotate(-14deg) scale(1); } 25% { transform: rotate(12deg) scale(1.08); } 50% { transform: rotate(-10deg) scale(1); } 75% { transform: rotate(10deg) scale(1.08); } }
+  @keyframes pZoom     { 0% { transform: translate(-50%,-50%) scale(.2); opacity: 0; } 40% { transform: translate(-50%,-50%) scale(2.4); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(2.1); opacity: 0; } }
+  @keyframes pSpin     { from { transform: rotate(0) scale(1.2); } to { transform: rotate(720deg) scale(1.2); } }
+  @keyframes pAcross   { 0% { transform: translateX(-25vw) translateY(0); } 25% { transform: translateX(15vw) translateY(-8vh); } 50% { transform: translateX(50vw) translateY(0); } 75% { transform: translateX(85vw) translateY(-8vh); } 100% { transform: translateX(125vw) translateY(0); } }
+  @keyframes pWave     { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7vh); } }
+  @keyframes pShoot    { from { transform: translate(-10vw,110vh) rotate(0); opacity: 1; } to { transform: translate(60vw,-25vh) rotate(360deg); opacity: 0; } }
 </style>
 </head>
 <body>
@@ -31,6 +46,7 @@
   <div id="name">Starting camera…</div>
 </div>
 <div id="banner"></div>
+<div id="party"></div>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
@@ -47,14 +63,234 @@
   function beep(good) {
     try {
       var ac = new (window.AudioContext || window.webkitAudioContext)();
-      var o = ac.createOscillator(), g = ac.createGain();
-      o.connect(g); g.connect(ac.destination);
-      o.type = 'sine'; o.frequency.value = good ? 880 : 300;
-      g.gain.setValueAtTime(0.001, ac.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.4, ac.currentTime + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.28);
-      o.start(); o.stop(ac.currentTime + 0.3);
+      var master = ac.createGain();
+      master.connect(ac.destination);
+      master.gain.value = 1.0;                 // full output; louder than before
+
+      function tone(freq, start, dur) {
+        var o = ac.createOscillator(), g = ac.createGain();
+        o.connect(g); g.connect(master);
+        o.type = 'triangle';                   // fuller, carries better than a plain sine
+        o.frequency.value = freq;
+        var t = ac.currentTime + start;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.9, t + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.start(t); o.stop(t + dur + 0.02);
+      }
+
+      if (good) {
+        tone(880, 0, 0.20);       // A5
+        tone(1318, 0.12, 0.30);   // E6 — bright rising "ding-ding"
+      } else {
+        tone(300, 0, 0.38);       // low buzz for errors
+      }
     } catch (e) {}
+  }
+
+  /* =====================================================================
+     Pre-K / Kinder celebration engine
+     - Fires only when the receiver reports one of LITTLE_KID_GRADES.
+     - Picks a random effect each scan, never repeating the last one.
+     - Fully self-contained; dormant until res.grade is present.
+     ===================================================================== */
+
+  // Grades that get the party. Normalized = lowercase, letters/digits only.
+  // Adjust this one line if your roster uses different labels (e.g. add 'tk').
+  var LITTLE_KID_GRADES = ['prek','pk','pre','k','kinder','kindergarten','kg','tk'];
+
+  var partyEl = document.getElementById('party');
+  var EMOJI = ['🎉','⭐','🦄','🌈','🎈','🐶','🐱','🎊','✨','🍭','🚀','🦋','🐢','🌟','🎁','🐥','🐸','🍦','🌸','💫','🥳','🐰','🦁','🐼','🐻','🌺','🎀','🍬'];
+
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function makeEmoji() { return pick(EMOJI); }
+
+  function el(emoji, css) {
+    var d = document.createElement('div');
+    d.className = 'pc';
+    d.textContent = emoji;
+    for (var k in css) {
+      if (k.indexOf('--') === 0) d.style.setProperty(k, css[k]);
+      else d.style[k] = css[k];
+    }
+    partyEl.appendChild(d);
+    return d;
+  }
+
+  // Each effect fills #party with animated emoji. All finish well under ~2.4s.
+  var EFFECTS = [
+    // 1. Confetti rain
+    function () {
+      for (var i = 0; i < 42; i++) {
+        el(makeEmoji(), {
+          left: rnd(0, 100) + 'vw', top: '0',
+          fontSize: rnd(26, 52) + 'px',
+          animation: 'pFall ' + rnd(1.6, 2.4).toFixed(2) + 's linear ' + rnd(0, 0.7).toFixed(2) + 's 1 forwards'
+        });
+      }
+    },
+    // 2. Floating balloons
+    function () {
+      for (var i = 0; i < 16; i++) {
+        el(pick(['🎈','🎈','🎈','🦄','⭐','🌈']), {
+          left: rnd(2, 96) + 'vw', top: '0',
+          fontSize: rnd(40, 70) + 'px',
+          animation: 'pFloatUp ' + rnd(2.0, 2.6).toFixed(2) + 's ease-in ' + rnd(0, 0.5).toFixed(2) + 's 1 forwards'
+        });
+      }
+    },
+    // 3. Center burst / explosion
+    function () {
+      for (var i = 0; i < 34; i++) {
+        var ang = Math.random() * Math.PI * 2, r = rnd(28, 55);
+        el(makeEmoji(), {
+          left: '50vw', top: '50vh', fontSize: rnd(28, 50) + 'px',
+          '--tx': (Math.cos(ang) * r).toFixed(1) + 'vw',
+          '--ty': (Math.sin(ang) * r).toFixed(1) + 'vh',
+          animation: 'pBurst ' + rnd(1.3, 1.9).toFixed(2) + 's ease-out ' + rnd(0, 0.15).toFixed(2) + 's 1 forwards'
+        });
+      }
+    },
+    // 4. Pop-in grid
+    function () {
+      for (var r = 0; r < 4; r++) for (var c = 0; c < 6; c++) {
+        el(makeEmoji(), {
+          left: (8 + c * 15) + 'vw', top: (14 + r * 20) + 'vh',
+          fontSize: rnd(34, 52) + 'px',
+          animation: 'pPop .5s ease-out ' + ((r * 6 + c) * 0.05).toFixed(2) + 's 1 both'
+        });
+      }
+    },
+    // 5. One giant wiggling emoji (flex-centered so rotate/scale stays in place)
+    function () {
+      var wrap = document.createElement('div');
+      wrap.className = 'pc';
+      wrap.style.left = '0'; wrap.style.top = '0';
+      wrap.style.width = '100vw'; wrap.style.height = '100vh';
+      wrap.style.display = 'flex';
+      wrap.style.alignItems = 'center';
+      wrap.style.justifyContent = 'center';
+      var e = document.createElement('div');
+      e.textContent = makeEmoji();
+      e.style.fontSize = '40vmin';
+      e.style.animation = 'pWiggle .6s ease-in-out 0s 4 both';
+      wrap.appendChild(e);
+      partyEl.appendChild(wrap);
+    },
+    // 6. Zooming stamps in sequence
+    function () {
+      for (var i = 0; i < 4; i++) {
+        el(makeEmoji(), {
+          left: '50vw', top: '50vh', fontSize: '20vmin',
+          animation: 'pZoom ' + '0.8s ease-out ' + (i * 0.45).toFixed(2) + 's 1 both'
+        });
+      }
+    },
+    // 7. Spinners scattered
+    function () {
+      for (var i = 0; i < 12; i++) {
+        el(makeEmoji(), {
+          left: rnd(6, 88) + 'vw', top: rnd(8, 82) + 'vh',
+          fontSize: rnd(38, 64) + 'px',
+          animation: 'pSpin ' + rnd(1.2, 2.0).toFixed(2) + 's linear ' + rnd(0, 0.4).toFixed(2) + 's 1 both'
+        });
+      }
+    },
+    // 8. Parade across the screen
+    function () {
+      for (var i = 0; i < 7; i++) {
+        el(makeEmoji(), {
+          left: '0', top: (18 + i * 9) + 'vh', fontSize: rnd(44, 60) + 'px',
+          animation: 'pAcross ' + rnd(1.8, 2.3).toFixed(2) + 's ease-in-out ' + (i * 0.12).toFixed(2) + 's 1 both'
+        });
+      }
+    },
+    // 9. The wave (row bobbing in sequence)
+    function () {
+      for (var i = 0; i < 9; i++) {
+        el(makeEmoji(), {
+          left: (5 + i * 10.5) + 'vw', top: '46vh', fontSize: '9vmin',
+          animation: 'pWave .8s ease-in-out ' + (i * 0.1).toFixed(2) + 's 2 both'
+        });
+      }
+    },
+    // 10. Shooting stars diagonally
+    function () {
+      for (var i = 0; i < 22; i++) {
+        el(pick(['⭐','🌟','✨','💫','🚀']), {
+          left: '0', top: '0', fontSize: rnd(26, 46) + 'px',
+          animation: 'pShoot ' + rnd(1.3, 2.0).toFixed(2) + 's ease-out ' + rnd(0, 0.9).toFixed(2) + 's 1 forwards'
+        });
+      }
+    },
+    // 11. Fireworks (several bursts at random points)
+    function () {
+      for (var b = 0; b < 6; b++) {
+        var bx = rnd(15, 85), by = rnd(15, 70);
+        for (var i = 0; i < 10; i++) {
+          var ang = Math.random() * Math.PI * 2, r = rnd(10, 22);
+          el(pick(['✨','⭐','🎆','🎇','💫']), {
+            left: bx + 'vw', top: by + 'vh', fontSize: rnd(22, 38) + 'px',
+            '--tx': (Math.cos(ang) * r).toFixed(1) + 'vw',
+            '--ty': (Math.sin(ang) * r).toFixed(1) + 'vh',
+            animation: 'pBurst ' + rnd(0.9, 1.4).toFixed(2) + 's ease-out ' + (b * 0.3).toFixed(2) + 's 1 forwards'
+          });
+        }
+      }
+    },
+    // 12. Raining hearts & stars only
+    function () {
+      for (var i = 0; i < 40; i++) {
+        el(pick(['❤️','💛','💚','💙','💜','⭐','🌟']), {
+          left: rnd(0, 100) + 'vw', top: '0', fontSize: rnd(24, 46) + 'px',
+          animation: 'pFall ' + rnd(1.7, 2.4).toFixed(2) + 's linear ' + rnd(0, 0.6).toFixed(2) + 's 1 forwards'
+        });
+      }
+    },
+    // 13. Giggle pops all over
+    function () {
+      for (var i = 0; i < 26; i++) {
+        el(makeEmoji(), {
+          left: rnd(4, 90) + 'vw', top: rnd(6, 84) + 'vh',
+          fontSize: rnd(30, 58) + 'px',
+          animation: 'pPop .55s ease-out ' + rnd(0, 1.4).toFixed(2) + 's 1 both'
+        });
+      }
+    },
+    // 14. Rainbow columns (each column one emoji)
+    function () {
+      var cols = 8;
+      for (var c = 0; c < cols; c++) {
+        var e = makeEmoji();
+        for (var i = 0; i < 5; i++) {
+          el(e, {
+            left: (4 + c * 12) + 'vw', top: '0', fontSize: rnd(30, 46) + 'px',
+            animation: 'pFall ' + rnd(1.7, 2.3).toFixed(2) + 's linear ' + (c * 0.06 + i * 0.12).toFixed(2) + 's 1 forwards'
+          });
+        }
+      }
+    }
+  ];
+
+  var lastEffect = -1;
+  function celebrate() {
+    var i = Math.floor(Math.random() * EFFECTS.length);
+    if (EFFECTS.length > 1 && i === lastEffect) i = (i + 1) % EFFECTS.length;
+    lastEffect = i;
+    partyEl.innerHTML = '';
+    partyEl.style.display = 'block';
+    EFFECTS[i]();
+  }
+
+  function clearParty() {
+    partyEl.style.display = 'none';
+    partyEl.innerHTML = '';
+  }
+
+  function isLittleKid(res) {
+    var g = String(res.grade || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return LITTLE_KID_GRADES.indexOf(g) !== -1;
   }
 
   function banner(text, cls) {
@@ -69,6 +305,7 @@
       nameEl.textContent = 'Point your card at the camera';
       nameEl.className = '';
       bannerEl.style.display = 'none';
+      clearParty();
     }, delay || 2400);
   }
 
@@ -79,6 +316,7 @@
       nameEl.className = 'ok';
       var late = (String(res.status).toLowerCase() === 'late');
       banner(res.status, late ? 'b-late' : 'b-present');
+      if (isLittleKid(res)) celebrate();
       reset(2400);
     } else if (res.reason === 'noschool') {
       nameEl.textContent = 'No school today';
