@@ -50,10 +50,17 @@
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
-  var RECEIVER_URL = 'https://script.google.com/macros/s/AKfycbxVoA0SrYCSI4Fb5f8tq4qpRqxDJOAQge0Tp-RcgaOa-hDejhhc5nLhr3e5GHuQ5t7qcA/exec';
+  // ---- Endpoints & keys ----
+  // Students and staff use SEPARATE Apps Script web apps + keys. The kiosk
+  // auto-detects which to call from the scanned ID's shape, so ONE iPad (any
+  // existing North/South URL) handles both -- no separate device or link.
+  // Endpoint URLs live here; KEYS stay in the iPad's URL, not this public repo.
+  var STUDENT_URL = 'https://script.google.com/macros/s/AKfycbxVoA0SrYCSI4Fb5f8tq4qpRqxDJOAQge0Tp-RcgaOa-hDejhhc5nLhr3e5GHuQ5t7qcA/exec';
+  var STAFF_URL   = 'PASTE_YOUR_STAFF_WEB_APP_EXEC_URL_HERE';
   var params = new URLSearchParams(location.search);
-  var KEY    = params.get('key')   || '';
-  var KIOSK  = params.get('kiosk') || 'Unknown';
+  var KEY       = params.get('key')      || '';   // student key (from URL)
+  var STAFF_KEY = params.get('staffkey') || '';   // staff key   (from URL)
+  var KIOSK     = params.get('kiosk')    || 'Unknown';
 
   var nameEl   = document.getElementById('name');
   var bannerEl = document.getElementById('banner');
@@ -351,13 +358,20 @@
     }
   }
 
+  // Staff IDs look like ST/VL + 3 letters + 2-3 digits (e.g. STBLE01, VLABC01).
+  // Student IDs are 4 letters + 5 digits, so they never match this pattern.
+  function isStaffId(code) { return /^(ST|VL)[A-Z]{3}\d{2,3}$/i.test(code); }
+
   function sendScan(code) {
+    var staff = isStaffId(code);
+    var url = staff ? STAFF_URL   : STUDENT_URL;   // route by ID shape
+    var key = staff ? STAFF_KEY   : KEY;
     var cbName = 'k_' + Date.now();
     var s = document.createElement('script');
     window[cbName] = function(res) { show(res); cleanup(s, cbName); };
     s.onerror = function() { show({ ok:false, reason:'neterr', message:'Network error' }); cleanup(s, cbName); };
-    s.src = RECEIVER_URL + '?callback=' + cbName +
-            '&key='   + encodeURIComponent(KEY) +
+    s.src = url + '?callback=' + cbName +
+            '&key='   + encodeURIComponent(key) +
             '&kiosk=' + encodeURIComponent(KIOSK) +
             '&code='  + encodeURIComponent(code);
     document.body.appendChild(s);
