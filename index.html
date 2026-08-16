@@ -2,10 +2,24 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>SAIL Check-In</title>
+
+<!-- ==== Home-screen app mode (iPad) ============================== -->
+<!-- Launches full screen with no Safari address bar / tabs when opened
+     from the home-screen icon. Has no effect in normal Safari. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SAIL Check-In">
+<meta name="theme-color" content="#000080">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
 <style>
   html, body { margin: 0; height: 100%; background: #000080; font-family: -apple-system, Arial, sans-serif; color: #fff; -webkit-user-select: none; user-select: none; }
-  #wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; padding: 10px; box-sizing: border-box; position: relative; }
+  #wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; padding: 10px; box-sizing: border-box; position: relative; padding-top: calc(10px + env(safe-area-inset-top)); padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
   h1 { font-size: 18px; font-weight: 500; margin: 0 0 8px; }
   #reader { width: 92vw; max-width: 640px; border-radius: 16px; overflow: hidden; background: #000; }
   #name { margin-top: 12px; font-size: 30px; min-height: 36px; text-align: center; font-weight: 500; line-height: 1.1; }
